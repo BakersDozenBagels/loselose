@@ -1,5 +1,4 @@
 {
   "allowExplicit": false,
-  "fetchAttempts": 50,
-  "lastImageId": 2485512
+  "fetchAttempts": 50
 }
