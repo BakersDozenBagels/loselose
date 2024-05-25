@@ -28,11 +28,11 @@ public class e621 : MonoBehaviour
 
     private static bool _lightsOn = false;
     private bool _inputMode = false, _ready = false, _tpInputting = false;
-    private byte _frames = 0, _pressed;
+    private byte _pressed;
     private static int _moduleIdCounter = 1;
     private int _moduleId = 0;
     private string _solution = "";
-    private float _extraDelay = 1f;
+    private float _extraDelay = 1f, _inputEndTime = 0f;
 
     private void FixedUpdate()
     {
@@ -40,45 +40,36 @@ public class e621 : MonoBehaviour
         if (!_lightsOn || isSolved)
             return;
 
-        if (_inputMode)
+        if (_inputMode && Time.time > _inputEndTime)
         {
-            _frames--;
-            if (_frames == 0)
+            if (_tpInputting)
+                return;
+
+            StartCoroutine(Blink());
+            _inputMode = false;
+            _pressed = 0;
+
+            if (Text.text[Text.text.Length - 1] != _solution[Text.text.Length - 1])
             {
-                if (_tpInputting)
-                {
-                    _frames++;
-                    return;
-                }
-
-                StartCoroutine(Blink());
-                _inputMode = false;
-                _pressed = 0;
-
-                if (Text.text[Text.text.Length - 1] != _solution[Text.text.Length - 1])
-                {
-                    Debug.LogFormat("[e621.net #{0}] Strike! The user submitted {1} instead of {2} on number {3}!", _moduleId, Text.text[Text.text.Length - 1], _solution[Text.text.Length - 1], Text.text.Length);
-                    Module.HandleStrike();
-                }
-
-                else
-                {
-                    if (Text.text == _solution)
-                    {
-                        isSolved = true;
-
-                        ResetVisuals();
-
-                        Audio.PlaySoundAtTransform("soundE621", Module.transform);
-                        Debug.LogFormat("[e621.net #{0}] The correct number was submitted, solved!", _moduleId);
-                        Module.HandlePass();
-                        return;
-                    }
-
-                    Text.text += _pressed.ToString();
-                    _pressed = 0;
-                }
+                Debug.LogFormat("[e621.net #{0}] Strike! The user submitted {1} instead of {2} on number {3}!", _moduleId, Text.text[Text.text.Length - 1], _solution[Text.text.Length - 1], Text.text.Length);
+                Module.HandleStrike();
+                return;
             }
+
+            if (Text.text == _solution)
+            {
+                isSolved = true;
+
+                ResetVisuals();
+
+                Audio.PlaySoundAtTransform("soundE621", Module.transform);
+                Debug.LogFormat("[e621.net #{0}] The correct number was submitted, solved!", _moduleId);
+                Module.HandlePass();
+                return;
+            }
+
+            Text.text += _pressed.ToString();
+            _pressed = 0;
         }
     }
 
@@ -150,7 +141,7 @@ public class e621 : MonoBehaviour
 
         _inputMode = true;
         _pressed = (byte)(++_pressed % 10);
-        _frames = 50;
+        _inputEndTime = Time.time + 0.5f;
 
         Text.text = Text.text.Substring(0, Text.text.Length - 1) + _pressed;
     }
@@ -160,10 +151,10 @@ public class e621 : MonoBehaviour
         _ready = false;
         ResetVisuals();
 
-        if(_extraDelay > 1f)
+        if (_extraDelay > 1f)
         {
             float end = Time.time + _extraDelay;
-            while(Time.time < end)
+            while (Time.time < end)
             {
                 Text.text = string.Format("Waiting\n{0:F2}\nseconds...", end - Time.time);
                 yield return null;
