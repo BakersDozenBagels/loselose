@@ -192,7 +192,7 @@ public class e621 : MonoBehaviour
 
             using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
             {
-                webRequest.SetRequestHeader("User-Agent", "KTANEModule/e621/V1.1 (by Emik)");
+                webRequest.SetRequestHeader("User-Agent", "KTANEModule/e621/V1.3 (by Emik)");
 
                 // Request and wait for the desired page.
                 yield return webRequest.SendWebRequest();
