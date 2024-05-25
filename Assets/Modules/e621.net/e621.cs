@@ -17,7 +17,7 @@ public class e621 : MonoBehaviour
     public KMBombModule Module;
     public KMBombInfo Info;
     public KMModSettings ModSettings;
-    public KMSelectable Button;
+    public KMSelectable Button, SLButton;
     public Mesh ComponentMesh, CubeMesh;
     public Renderer Component;
     public TextMesh Text;
@@ -32,6 +32,7 @@ public class e621 : MonoBehaviour
     private static int _moduleIdCounter = 1;
     private int _moduleId = 0;
     private string _solution = "";
+    private float _extraDelay = 1f;
 
     private void FixedUpdate()
     {
@@ -64,13 +65,9 @@ public class e621 : MonoBehaviour
                 {
                     if (Text.text == _solution)
                     {
-                        Text.text = "";
                         isSolved = true;
 
-                        Component.material.mainTexture = ComponentTexture;
-                        Component.GetComponent<MeshFilter>().mesh = ComponentMesh;
-                        Component.transform.localScale = new Vector3(1, 1, 1);
-                        Highlight.transform.localScale = new Vector3(0.2f, 0.15f, 0.2f);
+                        ResetVisuals();
 
                         Audio.PlaySoundAtTransform("soundE621", Module.transform);
                         Debug.LogFormat("[e621.net #{0}] The correct number was submitted, solved!", _moduleId);
@@ -83,6 +80,17 @@ public class e621 : MonoBehaviour
                 }
             }
         }
+    }
+
+    private void ResetVisuals()
+    {
+        Text.text = "";
+        Component.material.mainTexture = ComponentTexture;
+        Component.GetComponent<MeshFilter>().mesh = ComponentMesh;
+        Component.transform.localScale = new Vector3(1, 1, 1);
+        Highlight.transform.localScale = new Vector3(0.2f, 0.015f, 0.2f);
+        Text.color = new Color32(0xFE, 0xB2, 0x29, 0xFF);
+        Text.fontSize = 300;
     }
 
     /// <summary>
@@ -104,7 +112,18 @@ public class e621 : MonoBehaviour
             HandlePress();
             return false;
         };
-        _lightsOn = true;
+        SLButton.OnInteract += delegate ()
+        {
+            Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, Module.transform);
+            SLButton.AddInteractionPunch(10f);
+
+            if (!_ready)
+                return false;
+
+            Debug.LogFormat("[e621.net #{0}] Fetching a new image after {1} seconds...", _moduleId, _extraDelay - 1f);
+            StartCoroutine(Load());
+            return false;
+        };
     }
 
     /// <summary>
@@ -113,6 +132,7 @@ public class e621 : MonoBehaviour
     private void Init()
     {
         StartCoroutine(Load());
+        _lightsOn = true;
     }
 
     /// <summary>
@@ -137,6 +157,20 @@ public class e621 : MonoBehaviour
 
     private IEnumerator Load()
     {
+        _ready = false;
+        ResetVisuals();
+
+        if(_extraDelay > 1f)
+        {
+            float end = Time.time + _extraDelay;
+            while(Time.time < end)
+            {
+                Text.text = string.Format("Waiting\n{0:F2}\nseconds...", end - Time.time);
+                yield return null;
+            }
+        }
+        _extraDelay *= 3f;
+
         bool allowExplicit = false;
         uint fetchAttempts = 100;
         try
@@ -206,11 +240,13 @@ public class e621 : MonoBehaviour
                     yield return wwwLoader;
 
                     float width = wwwLoader.texture.width, height = wwwLoader.texture.height;
-                    Component.transform.localScale = new Vector3(width / Mathf.Max(width, height) / 5, 0.03f, height / Mathf.Max(width, height) / 5);
-                    Highlight.transform.localScale = new Vector3((width / Mathf.Max(width, height) / 5) + 0.01f, 0.015f, (height / Mathf.Max(width, height) / 5) + 0.01f);
+                    var cls = new Vector3(width / Mathf.Max(width, height) / 5, 0.03f, height / Mathf.Max(width, height) / 5);
 
                     if (Component.transform.localScale.x < 0.1f || Component.transform.localScale.z < 0.1f)
                         continue;
+
+                    Component.transform.localScale = cls;
+                    Highlight.transform.localScale = new Vector3((width / Mathf.Max(width, height) / 5) + 0.01f, 0.015f, (height / Mathf.Max(width, height) / 5) + 0.01f);
 
                     Component.material.mainTexture = wwwLoader.texture;
                     Component.GetComponent<MeshFilter>().mesh = CubeMesh;
