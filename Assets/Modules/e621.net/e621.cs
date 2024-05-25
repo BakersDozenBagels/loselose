@@ -10,7 +10,7 @@ public class e621 : MonoBehaviour
     public class ModSettingsJSON
     {
         public bool allowExplicit;
-        public uint fetchAttempts, lastImageId;
+        public uint fetchAttempts;
     }
 
     public KMAudio Audio;
@@ -27,7 +27,7 @@ public class e621 : MonoBehaviour
     bool isSolved = false;
 
     private static bool _lightsOn = false;
-    private bool _inputMode = false, _ready = false;
+    private bool _inputMode = false, _ready = false, _tpInputting = false;
     private byte _frames = 0, _pressed;
     private static int _moduleIdCounter = 1;
     private int _moduleId = 0;
@@ -44,6 +44,12 @@ public class e621 : MonoBehaviour
             _frames--;
             if (_frames == 0)
             {
+                if (_tpInputting)
+                {
+                    _frames++;
+                    return;
+                }
+
                 StartCoroutine(Blink());
                 _inputMode = false;
                 _pressed = 0;
@@ -132,7 +138,7 @@ public class e621 : MonoBehaviour
     private IEnumerator Load()
     {
         bool allowExplicit = false;
-        uint fetchAttempts = 100, lastImageId = 2485512;
+        uint fetchAttempts = 100;
         try
         {
             ModSettingsJSON settings = JsonConvert.DeserializeObject<ModSettingsJSON>(ModSettings.Settings);
@@ -141,7 +147,6 @@ public class e621 : MonoBehaviour
                 Debug.LogFormat("[e621.net #{0}] JSON read successfully.", _moduleId);
                 allowExplicit = settings.allowExplicit;
                 fetchAttempts = settings.fetchAttempts;
-                lastImageId = settings.lastImageId;
             }
             else
                 Debug.LogFormat("[e621.net #{0}] JSON accessed, but is empty.", _moduleId);
@@ -179,17 +184,8 @@ public class e621 : MonoBehaviour
                         continue;
                 }
 
-                if (allowExplicit)
-                {
-                    regex2 = new Regex(@"https:\/\/static1\.e621\.net\/data\/..\/..\/................................\...g");
-                    regex3 = new Regex(@"https:\/\/static1\.e621\.net\/data\/sample\/..\/..\/................................\...g");
-                }
-
-                else
-                {
-                    regex2 = new Regex(@"https:\/\/static1\.e926\.net\/data\/..\/..\/................................\...g");
-                    regex3 = new Regex(@"https:\/\/static1\.e926\.net\/data\/sample\/..\/..\/................................\...g");
-                }
+                regex2 = new Regex(@"https:\/\/static1\.e(621|926)\.net\/data\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{32}\.(pn|jp)g");
+                regex3 = new Regex(@"https:\/\/static1\.e(621|926)\.net\/data\/sample\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{32}\.(pn|jp)g");
 
                 regex4 = new Regex(@"""id"":(\d+)");
 
@@ -281,7 +277,7 @@ public class e621 : MonoBehaviour
     }
 
 #pragma warning disable 414
-    private readonly string TwitchHelpMessage = @"!{0} submit <#> (Submits that image ID)";
+    private readonly string TwitchHelpMessage = @"!{0} submit <#> (Submits those digits)";
 #pragma warning restore 414
 
     /// <summary>
@@ -290,7 +286,7 @@ public class e621 : MonoBehaviour
     /// <param name="command">The twitch command made by the user.</param>
     IEnumerator ProcessTwitchCommand(string command)
     {
-        Regex rx = new Regex(@"^\s*submit\s*(\d+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Regex rx = new Regex(@"^\s*(?:submit\s*)?(\d+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         Match m = rx.Match(command);
 
@@ -302,18 +298,14 @@ public class e621 : MonoBehaviour
             {
                 int v = int.Parse(c.ToString());
                 if (v == 0)
-                {
-                    Button.OnInteract();
-                    //frame-based interaction timer lmao
-                    for (int i = 0; i < 10; i++)
-                        yield return null;
-                }
+                    v = 10;
+                _tpInputting = true;
                 while (_pressed != v)
                 {
                     Button.OnInteract();
-                    for (int i = 0; i < 10; i++)
-                        yield return null;
+                    yield return new WaitForSeconds(0.1f);
                 }
+                _tpInputting = false;
                 while (_inputMode)
                     yield return true;
             }
@@ -325,7 +317,7 @@ public class e621 : MonoBehaviour
     /// </summary>
     IEnumerator TwitchHandleForcedSolve()
     {
-        var it = ProcessTwitchCommand("submit " + _solution.Substring(Text.text.Length - 1, _solution.Length - Text.text.Length + 1));
+        var it = ProcessTwitchCommand("submit " + _solution.Substring(Text.text.Length - 1));
         while (it.MoveNext())
             yield return it.Current;
     }
